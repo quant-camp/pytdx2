@@ -1,10 +1,11 @@
-from datetime import datetime
+from datetime import date
+import math
 from typing import override
 from baseStockClient import BaseStockClient, update_last_ack_time
 from block_reader import BlockReader, BlockReader_TYPE_FLAT
 from log import log
-from params import TDXParams
-from parser import finance_report, index_bars, security, setup, company_info, block, xdxr
+from params import BLOCK_FILE_TYPE, KLINE_TYPE, MARKET, TDXParams
+from parser import index_bars, security, setup, company_info, block
 from parser.baseparser import BaseParser
 
 import pandas as pd
@@ -29,7 +30,7 @@ class TdxClient(BaseStockClient):
         self.get_security_count(1)
 
     @update_last_ack_time
-    def get_security_bars(self, market, code, kline_type, start, count):
+    def get_security_bars(self, market: MARKET, code: str, kline_type: KLINE_TYPE, start, count):
         return self.call(security.Bars(market, code, kline_type, start, count))
 
     @update_last_ack_time
@@ -53,65 +54,66 @@ class TdxClient(BaseStockClient):
         return self.call(security.Quotes(all_stock))
 
     @update_last_ack_time
-    def get_security_count(self, market):
+    def get_security_count(self, market: MARKET):
         return self.call(security.Count(market))
 
     @update_last_ack_time
-    def get_security_list(self, market, start):
+    def get_security_list(self, market: MARKET, start):
         return self.call(security.List(market, start))
 
     @update_last_ack_time
-    def get_index_bars(self, market, code, kline_type, start, count):
+    def get_index_bars(self, market: MARKET, code: str, kline_type: KLINE_TYPE, start: int, count: int):
         return self.call(index_bars.IndexBars(market, code, kline_type, start, count))
 
     @update_last_ack_time
-    def get_orders(self, market, code):
+    def get_orders(self, market: MARKET, code: str):
         return self.call(security.Orders(market, code))
 
     @update_last_ack_time
-    def get_history_orders(self, market, code, date):
+    def get_history_orders(self, market: MARKET, code: str, date: date):
         return self.call(security.HistoryOrders(market, code, date))
 
     @update_last_ack_time
-    def get_transaction(self, market, code, start, count):
+    def get_transaction(self, market: MARKET, code: str, start: int, count: int):
         return self.call(security.Transaction(market, code, start, count))
 
     @update_last_ack_time
-    def get_history_transaction(self, market, code, date, start, count):
+    def get_history_transaction(self, market: MARKET, code: str, date: date, start: int, count: int):
         return self.call(security.HistoryTransaction(market, code, date, start, count))
 
     @update_last_ack_time
-    def get_company_info_category(self, market, code):
-        return self.call(company_info.Category(market, code))
+    def get_company_info(self, market: MARKET, code: str):
+        category = self.call(company_info.Category(market, code))
+
+        info = []
+        for part in category:
+            content = self.call(company_info.Content(market, code, part['filename'], part['start'], part['length']))
+            info.append({
+                'name': part['name'],
+                'content': content['content'],
+            })
+
+        xdxr = self.call(company_info.XDXR(market, code))
+        if xdxr:
+            info.append({
+                'name': '除权分红',
+                'content': xdxr,
+            })
+
+        finance = self.call(company_info.Finance(market, code))
+        if finance:
+            info.append({
+                'name': '财报',
+                'content': finance,
+            })
+        return info
 
     @update_last_ack_time
-    def get_company_info_content(self, market, code, filename, start, length):
-        return self.call(company_info.Content(market, code, filename, start, length))
-
-    @update_last_ack_time
-    def get_xdxr_info(self, market, code):
-        return self.call(xdxr.XDXR(market, code))
-
-    @update_last_ack_time
-    def get_finance_info(self, market, code):
-        return self.call(finance_report.Finance(market, code))
-
-    @update_last_ack_time
-    def get_block_meta(self, blockfile):
-        return self.call(block.Meta(blockfile))
-
-    @update_last_ack_time
-    def get_block_info(self, blockfile, start, size):
-        return self.call(block.Info(blockfile, start, size))
-
-    @update_last_ack_time
-    def get_report_file(self, filename, offset):
-        return self.call(block.Report(filename, offset))
-
-    def get_and_parse_block_info(self, blockfile):
+    def get_block_info(self, block_file_type: BLOCK_FILE_TYPE):
         try:
-            meta = self.get_block_meta(blockfile)
+            meta = self.call(block.Meta(block_file_type))
         except Exception as e:
+            log.error(e)
             return None
 
         if not meta:
@@ -120,20 +122,16 @@ class TdxClient(BaseStockClient):
         size = meta['size']
         one_chunk = 0x7530
 
-
-        chuncks = size // one_chunk
-        if size % one_chunk != 0:
-            chuncks += 1
-
         file_content = bytearray()
-        for seg in range(chuncks):
+        for seg in range(math.ceil(size / one_chunk)):
             start = seg * one_chunk
-            piece_data = self.get_block_info(blockfile, start, size)
+            piece_data = self.call(block.Info(block_file_type, start, one_chunk))["data"]
             file_content.extend(piece_data)
 
         return BlockReader().get_data(file_content, BlockReader_TYPE_FLAT)
 
-    def get_report_file_by_size(self, filename, filesize=0, reporthook=None):
+    @update_last_ack_time
+    def get_report_file(self, filename: str, filesize=0, reporthook=None):
         """
         Download file from proxy server
 
@@ -144,11 +142,11 @@ class TdxClient(BaseStockClient):
         current_downloaded_size = 0
         get_zero_length_package_times = 0
         while current_downloaded_size < filesize or filesize == 0:
-            response = self.get_report_file(filename, current_downloaded_size)
-            if response["chunksize"] > 0:
+            response = self.call(block.Report(filename, current_downloaded_size))
+            if response["size"] > 0:
                 current_downloaded_size = current_downloaded_size + \
-                    response["chunksize"]
-                filecontent.extend(response["chunkdata"])
+                    response["size"]
+                filecontent.extend(response["data"])
                 if reporthook is not None:
                     reporthook(current_downloaded_size,filesize)
             else:
@@ -166,8 +164,8 @@ class TdxClient(BaseStockClient):
         def __select_market_code(code):
             code = str(code)
             if code[0] in ['5', '6', '9'] or code[:3] in ["009", "126", "110", "201", "202", "203", "204"]:
-                return 1
-            return 0
+                return MARKET.SH
+            return MARKET.SZ
         # 新版一劳永逸偷懒写法zzz
         market_code = 1 if str(code)[0] == '6' else 0
         # https://github.com/rainx/pytdx/issues/33
@@ -177,7 +175,7 @@ class TdxClient(BaseStockClient):
         data = pd.concat(
             [
                 to_df(
-                    self.get_security_bars(__select_market_code(code), code, 9, (9 - i) * 800, 800)
+                    self.get_security_bars(__select_market_code(code), code, KLINE_TYPE.DAY_K, (9 - i) * 800, 800)
                 ) for i in range(10)
             ], axis=0)
  
@@ -204,31 +202,33 @@ if __name__ == "__main__":
     client = TdxClient()
     if client.connect('202.100.166.21'):
         log.info("获取股票行情")
-        print_df(client.get_security_quotes([(0, '000001'), (1, '600300')]))
+        print_df(client.get_security_quotes([(MARKET.SZ, '000001'), (MARKET.SH, '600300')]))
         log.info("获取k线")
-        print_df(client.get_security_bars(0, '000001', 9, 0, 3))
+        print_df(client.get_security_bars(MARKET.SZ, '000001', KLINE_TYPE.DAY_K, 0, 3))
         log.info("获取 深市 股票数量")
-        print_df(client.get_security_count(0))
+        print_df(client.get_security_count(MARKET.SZ))
         log.info("获取股票列表")
-        print_df(client.get_security_list(1, 255))
+        print_df(client.get_security_list(MARKET.SH, 22384))
+        log.info("获取股票列表")
+        print_df(client.get_security_list(MARKET.SH, 25217))
+        log.info("获取股票列表")
+        print_df(client.get_security_list(MARKET.SZ, 20569))
         log.info("获取指数k线")
-        print_df(client.get_index_bars(1, '000001', 9, 1, 2))
+        print_df(client.get_index_bars(MARKET.SH, '999999', KLINE_TYPE.DAY_K, 0, 10))
         log.info("查询分时行情")
-        print_df(client.get_orders(TDXParams.MARKET_SH, '600300'))
+        print_df(client.get_orders(MARKET.SZ, '000001'))
         log.info("查询历史分时行情")
-        print_df(client.get_history_orders(TDXParams.MARKET_SH, '600300', datetime(2023, 3, 1).date()))
+        print_df(client.get_history_orders(MARKET.SZ, '000001', date(2023, 3, 1)))
         log.info("查询分时成交")
-        print_df(client.get_transaction(TDXParams.MARKET_SZ, '000001', 0, 30))
+        print_df(client.get_transaction(MARKET.SZ, '000001', 0, 30))
         log.info("查询历史分时成交")
-        print_df(client.get_history_transaction(TDXParams.MARKET_SZ, '000001', datetime(2023, 3, 1).date(), 0, 10))
-        log.info("查询公司信息目录")
-        print_df(client.get_company_info_category(TDXParams.MARKET_SZ, '000001'))
-        log.info("读取公司信息-最新提示")
-        print_df(client.get_company_info_content(0, '000001', '000001.txt', 0, 10))
-        log.info("读取除权除息信息")
-        print_df(client.get_xdxr_info(1, '600300'))
-        log.info("读取财务信息")
-        print_df(client.get_finance_info(0, '000001'))
+        print_df(client.get_history_transaction(MARKET.SZ, '000001', date(2023, 3, 1), 0, 30))
+        log.info("查询公司信息")
+        print_df(client.get_company_info(MARKET.SZ, '000001'))
         log.info("日线级别k线获取函数")
         pprint.pprint(client.get_k_data('000001', '2017-07-01', '2017-07-10'))
+        log.info("获取板块信息")
+        pprint.pprint(client.get_block_info(BLOCK_FILE_TYPE.SZ))
+        log.info("获取报告文件")
+        pprint.pprint(client.get_report_file('tdxfin/gpcw.txt'))
     client.disconnect()

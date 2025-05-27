@@ -1,6 +1,5 @@
 import struct
 from typing import override
-from log import log
 from parser.security import Bars
 from help import get_price, to_datetime
 
@@ -15,7 +14,7 @@ class IndexBars(Bars):
         for _ in range(count):
             (date,) = struct.unpack("<I", data[pos: pos + 4])
             pos += 4
-            date = to_datetime(date, self.kline_type < 4 or self.kline_type == 7 or self.kline_type == 8)
+            date = to_datetime(date, self.kline_type.value < 4 or self.kline_type.value == 7 or self.kline_type.value == 8)
 
             open, pos = get_price(data, pos)
             close, pos = get_price(data, pos)
