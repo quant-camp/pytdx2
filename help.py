@@ -53,7 +53,11 @@ def to_datetime(num, with_time=False):
         year = int(num / 10000)
         month = int((num % 10000) / 100)
         day = num % 100
-    return datetime.date(year, month, day, hour, minute)
+
+    date = datetime.date(year, month, day)
+    time = datetime.time(hour, minute)
+    datetime_obj = datetime.datetime.combine(date, time)
+    return datetime_obj
 
 def get_time(buffer, pos):
     (tminutes, ) = struct.unpack("<H", buffer[pos: pos + 2])

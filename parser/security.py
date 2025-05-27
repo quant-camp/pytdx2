@@ -7,12 +7,12 @@ import six
 from help import to_datetime, get_price, get_time
 
 
-@register_parser(u'0c 12 34 00', u'00 00', u'b9 06')
+@register_parser(u'0c 10 08 64', u'01 01', u'2d 05')
 class Bars(BaseParser):
     def __init__(self, market, code, kline_type, start, end):
         if type(code) is six.text_type:
             code = code.encode("utf-8")
-        self.body.extend(struct.pack(u'<H6sHHHH10s', market, code, kline_type, 1, start, end, ''))
+        self.body = struct.pack(u'<H6sHHHH10s', market, code, kline_type, 1, start, end, b'')
 
         self.kline_type = kline_type
 
@@ -26,7 +26,7 @@ class Bars(BaseParser):
         for _ in range(count):
             (date,) = struct.unpack("<I", data[pos: pos + 4])
             pos += 4
-            date = to_datetime(date, self.kline_type < 4 or self.kline_type == 7 or self.kline_type == 8)
+            datetime = to_datetime(date, self.kline_type < 4 or self.kline_type == 7 or self.kline_type == 8)
 
             open, pos = get_price(data, pos)
             close, pos = get_price(data, pos)
@@ -45,7 +45,7 @@ class Bars(BaseParser):
             pre_diff_base = close
 
             bars.append({
-                'date': date,
+                'datetime': datetime,
                 'open': open,
                 'close': close,
                 'high': high,
@@ -59,7 +59,7 @@ class Bars(BaseParser):
 @register_parser(u'0c 0c 18 6c', u'00 01', u'4e 04')
 class Count(BaseParser):
     def __init__(self, market):
-        self.body = struct.pack(u'<H4s', market, u'75 c7 33 01')
+        self.body = struct.pack(u'<HI', market, 0x133c775)
 
     @override
     def deserialize(self, data):
@@ -79,10 +79,10 @@ class List(BaseParser):
         stocks = []
         for i in range(count):
             pos = 2 + i * 29
-            (code, vol, name_bytes, unknow1, decimal_point,
+            (code, vol, name, unknow1, decimal_point,
              pre_close, unknow2) = struct.unpack("<6sH8s4sBf4s", data[pos: pos + 29])
             code = code.decode('utf-8')
-            name = name_bytes.decode('gbk').rstrip('\x00')
+            name = name.decode('gbk', errors='ignore').rstrip('\x00')
 
             stocks.append({
                 'code': code,
@@ -101,7 +101,7 @@ class Orders(BaseParser):
     def __init__(self, market, code):
         if type(code) is six.text_type:
             code = code.encode("utf-8")
-        self.body.extend(struct.pack(u'<H6sI', market, code, 0))
+        self.body = struct.pack(u'<H6sI', market, code, 0)
 
     @override
     def deserialize(self, data):
@@ -131,7 +131,7 @@ class HistoryOrders(BaseParser):
         if type(code) is six.text_type:
             code = code.encode("utf-8")
         date = date.year * 10000 + date.month * 100 + date.day
-        self.body.extend(struct.pack(u'<IB6s', date, market, code))
+        self.body = struct.pack(u'<IB6s', date, market, code)
 
     @override
     def deserialize(self, data):
@@ -164,8 +164,7 @@ class Quotes(BaseParser):
         count = len(stocks)
         if count <= 0:
             raise Exception("stocks count must > 0")
-        self.body.extend(bytearray.fromhex('05 00 00 00 00 00 00 00'))
-        self.body.extend(struct.pack('<H', count))
+        self.body = struct.pack('<H6sH', 5, b'', count)
         
         stock_buf = bytearray()
         for stock in stocks:
@@ -181,6 +180,10 @@ class Quotes(BaseParser):
         pos = 4
 
         def _format_time(time_stamp):
+            if time_stamp == 0:
+                return '00:00:00.000'
+            else:
+                time_stamp = str(time_stamp)
             """
             format time from reversed_bytes0
             by using method from https://github.com/rainx/pytdx/issues/187
@@ -211,7 +214,7 @@ class Quotes(BaseParser):
             open, pos = get_price(data, pos)
             high, pos = get_price(data, pos)
             low, pos = get_price(data, pos)
-            server_time, pos = get_price(data, pos)
+            reversed_bytes0, pos = get_price(data, pos)
             reversed_bytes1, pos = get_price(data, pos)
             vol, pos = get_price(data, pos)
             cur_vol, pos = get_price(data, pos)
@@ -220,7 +223,7 @@ class Quotes(BaseParser):
             open += price
             high += price
             low += price
-            server_time = _format_time('%s' % server_time)
+            server_time = _format_time(reversed_bytes0)
 
             (amount,) = struct.unpack('<f', data[pos: pos + 4])
             pos += 4
@@ -327,7 +330,7 @@ class Transaction(BaseParser):
     def __init__(self, market, code, start, count):
         if type(code) is six.text_type:
             code = code.encode("utf-8")
-        self.body.extend(struct.pack(u'<H6sHH', market, code, start, count))
+        self.body = struct.pack(u'<H6sHH', market, code, start, count)
 
     @override
     def deserialize(self, data):
@@ -363,7 +366,7 @@ class HistoryTransaction(BaseParser):
         if type(code) is six.text_type:
             code = code.encode("utf-8")
         date = date.year * 10000 + date.month * 100 + date.day
-        self.body.extend(struct.pack(u'<IH6sHH', date, market, code, start, count))   
+        self.body = struct.pack(u'<IH6sHH', date, market, code, start, count)
 
     @override
     def deserialize(self, data):

@@ -8,7 +8,7 @@ class Finance(BaseParser):
     def __init__(self, market, code):
         if type(code) is six.text_type:
             code = code.encode("utf-8")
-        self.body.extend(struct.pack(u"<HB6s", 1, market, code))
+        self.body = struct.pack(u"<HB6s", 1, market, code)
 
     @override
     def deserialize(self, data):

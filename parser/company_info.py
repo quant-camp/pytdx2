@@ -8,7 +8,7 @@ class Category(BaseParser):
     def __init__(self, market, code):
         if type(code) is six.text_type:
             code = code.encode("utf-8")
-        self.body.extend(struct.pack(u"<H6sI", market, code, 0))
+        self.body = struct.pack(u"<H6sI", market, code, 0)
 
     @override
     def deserialize(self, data):
@@ -26,7 +26,7 @@ class Category(BaseParser):
 
         categories = []
         for i in range(count):
-            category_buf = data[2 + i * 152:2 + (i + 1) * 152 - 1]
+            category_buf = data[2 + i * 152:2 + (i + 1) * 152]
 
             (name, filename, start, length) = struct.unpack("<64s80sII", category_buf)
             categories.append({
@@ -50,11 +50,11 @@ class Content(BaseParser):
         if len(filename) != 80:
             filename = filename.ljust(80, b'\x00')
 
-        self.body.extend(struct.pack(u"<H6sH80sIII", market, code, 0, filename, start, length, 0))
+        self.body = struct.pack(u"<H6sH80sIII", market, code, 0, filename, start, length, 0)
 
     @override
     def deserialize(self, data):
-        (market, code, marketOR, length) = struct.unpack(u"<H6sHH", data)
+        (market, code, marketOR, length) = struct.unpack(u"<H6sHH", data[:12])
 
         return {
             'market': market,

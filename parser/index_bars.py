@@ -1,13 +1,12 @@
 import struct
 from typing import override
+from log import log
 from parser.security import Bars
 from help import get_price, to_datetime
 
 class IndexBars(Bars):
     @override
     def deserialize(self, data):
-        super().deserialize(data)
-        
         (count,) = struct.unpack('<H', data[:2])
         pos = 2
 

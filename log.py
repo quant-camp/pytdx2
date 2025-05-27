@@ -4,7 +4,6 @@ import logging
 import os
 
 DEBUG = os.getenv("TDX2_DEBUG", "")
-DEBUG = True
 
 if DEBUG:
     LOGLEVEL = logging.DEBUG

@@ -1,9 +1,10 @@
+from datetime import datetime
 from typing import override
 from baseStockClient import BaseStockClient, update_last_ack_time
 from block_reader import BlockReader, BlockReader_TYPE_FLAT
 from log import log
 from params import TDXParams
-from parser import finance_report, security, setup, company_info, block, xdxr
+from parser import finance_report, index_bars, security, setup, company_info, block, xdxr
 from parser.baseparser import BaseParser
 
 import pandas as pd
@@ -28,8 +29,8 @@ class TdxClient(BaseStockClient):
         self.get_security_count(1)
 
     @update_last_ack_time
-    def get_security_bars(self, category, market, code, start, count):
-        return self.call(security.Bars(category, market, code, start, count))
+    def get_security_bars(self, market, code, kline_type, start, count):
+        return self.call(security.Bars(market, code, kline_type, start, count))
 
     @update_last_ack_time
     def get_security_quotes(self, all_stock, code=None):
@@ -60,8 +61,8 @@ class TdxClient(BaseStockClient):
         return self.call(security.List(market, start))
 
     @update_last_ack_time
-    def get_index_bars(self, category, market, code, start, count):
-        return self.call(security.Bars(category, market, code, start, count))
+    def get_index_bars(self, market, code, kline_type, start, count):
+        return self.call(index_bars.IndexBars(market, code, kline_type, start, count))
 
     @update_last_ack_time
     def get_orders(self, market, code):
@@ -76,8 +77,8 @@ class TdxClient(BaseStockClient):
         return self.call(security.Transaction(market, code, start, count))
 
     @update_last_ack_time
-    def get_history_transaction(self, market, code, start, count, date):
-        return self.call(security.HistoryTransaction(market, code, start, count, date))
+    def get_history_transaction(self, market, code, date, start, count):
+        return self.call(security.HistoryTransaction(market, code, date, start, count))
 
     @update_last_ack_time
     def get_company_info_category(self, market, code):
@@ -180,12 +181,18 @@ class TdxClient(BaseStockClient):
             else:
                 return pd.DataFrame(data=[{'value': v}])
 
-        data = pd.concat([to_df(self.get_security_bars(9, __select_market_code(
-            code), code, (9 - i) * 800, 800)) for i in range(10)], axis=0)
+        data = pd.concat(
+            [
+                to_df(
+                    self.get_security_bars(__select_market_code(code), code, 9, (9 - i) * 800, 800)
+                ) for i in range(10)
+            ], axis=0)
 
-        data = data.assign(date=data['datetime'].apply(lambda x: str(x)[0:10])).assign(code=str(code))\
+        pprint.pprint(data)
+        data = data.assign(date=data['datetime'].apply(lambda x: str(x)[0:10]))\
+            .assign(code=str(code))\
             .set_index('date', drop=False, inplace=False)\
-            .drop(['year', 'month', 'day', 'hour', 'minute', 'datetime'], axis=1)[start_date:end_date]
+            .drop(['datetime'], axis=1)[start_date:end_date]
         return data.assign(date=data['date'].apply(lambda x: str(x)[0:10]))
 
 
@@ -193,33 +200,33 @@ if __name__ == "__main__":
     import pprint
 
     client = TdxClient()
-    if client.connect():
+    if client.connect('202.100.166.21'):
         log.info("获取股票行情")
         pprint.pprint(client.get_security_quotes([(0, '000001'), (0, '600300')]))
-        # log.info("获取k线")
-        # pprint.pprint(client.get_security_bars(9, 0, '000001', 4, 3))
-        # log.info("获取 深市 股票数量")
-        # pprint.pprint(client.get_security_count(0))
-        # log.info("获取股票列表")
-        # pprint.pprint(client.get_security_list(1, 255))
-        # log.info("获取指数k线")
-        # pprint.pprint(client.get_index_bars(9, 1, '000001', 1, 2))
-        # log.info("查询分时行情")
-        # pprint.pprint(client.get_orders(TDXParams.MARKET_SH, '600300'))
-        # log.info("查询历史分时行情")
-        # pprint.pprint(client.get_history_orders(TDXParams.MARKET_SH, '600300', 20161209))
-        # log.info("查询分时成交")
-        # pprint.pprint(client.get_transaction(TDXParams.MARKET_SZ, '000001', 0, 30))
-        # log.info("查询历史分时成交")
-        # pprint.pprint(client.get_history_transaction(TDXParams.MARKET_SZ, '000001', 0, 10, 20170209))
-        # log.info("查询公司信息目录")
-        # pprint.pprint(client.get_company_info_category(TDXParams.MARKET_SZ, '000001'))
-        # log.info("读取公司信息-最新提示")
-        # pprint.pprint(client.get_company_info_content(0, '000001', '000001.txt', 0, 10))
-        # log.info("读取除权除息信息")
-        # pprint.pprint(client.get_xdxr_info(1, '600300'))
-        # log.info("读取财务信息")
-        # pprint.pprint(client.get_finance_info(0, '000001'))
-        # log.info("日线级别k线获取函数")
-        # pprint.pprint(client.get_k_data('000001', '2017-07-01', '2017-07-10'))
+        log.info("获取k线")
+        pprint.pprint(client.get_security_bars(0, '000001', 9, 0, 3))
+        log.info("获取 深市 股票数量")
+        pprint.pprint(client.get_security_count(0))
+        log.info("获取股票列表")
+        pprint.pprint(client.get_security_list(1, 255))
+        log.info("获取指数k线")
+        pprint.pprint(client.get_index_bars(1, '000001', 9, 1, 2))
+        log.info("查询分时行情")
+        pprint.pprint(client.get_orders(TDXParams.MARKET_SH, '600300'))
+        log.info("查询历史分时行情")
+        pprint.pprint(client.get_history_orders(TDXParams.MARKET_SH, '600300', datetime(2023, 3, 1).date()))
+        log.info("查询分时成交")
+        pprint.pprint(client.get_transaction(TDXParams.MARKET_SZ, '000001', 0, 30))
+        log.info("查询历史分时成交")
+        pprint.pprint(client.get_history_transaction(TDXParams.MARKET_SZ, '000001', datetime(2023, 3, 1).date(), 0, 10))
+        log.info("查询公司信息目录")
+        pprint.pprint(client.get_company_info_category(TDXParams.MARKET_SZ, '000001'))
+        log.info("读取公司信息-最新提示")
+        pprint.pprint(client.get_company_info_content(0, '000001', '000001.txt', 0, 10))
+        log.info("读取除权除息信息")
+        pprint.pprint(client.get_xdxr_info(1, '600300'))
+        log.info("读取财务信息")
+        pprint.pprint(client.get_finance_info(0, '000001'))
+        log.info("日线级别k线获取函数")
+        pprint.pprint(client.get_k_data('000001', '2017-07-01', '2017-07-10'))
     client.disconnect()

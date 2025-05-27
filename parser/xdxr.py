@@ -10,7 +10,7 @@ class XDXR(BaseParser):
     def __init__(self, market, code):
         if type(code) is six.text_type:
             code = code.encode("utf-8")
-        self.body.extend(struct.pack(u'<HB6s', 1, market, code))
+        self.body = struct.pack(u'<HB6s', 1, market, code)
 
     @override
     def deserialize(self, data):
@@ -19,10 +19,10 @@ class XDXR(BaseParser):
         xdxrs = []
         for i in range(count):
             pos = 11 + i * 29
-            (market, code, unknown, date, category) = struct.unpack('<B6sB4sB', data[pos: pos + 11])
+            (market, code, unknown, date, category) = struct.unpack('<B6sBIB', data[pos: pos + 13])
             date = to_datetime(date)
 
-            left_data = data[pos + 13: pos + 28]
+            left_data = data[pos + 13: pos + 29]
             fenhong, peigujia, songzhuangu, peigu = None, None, None, None
             suogu = None
             xingquanjia, fenshu = None, None
