@@ -164,7 +164,7 @@ class Quotes(BaseParser):
         count = len(stocks)
         if count <= 0:
             raise Exception("stocks count must > 0")
-        self.body = struct.pack('<H6sH', 5, b'', count)
+        self.body = bytearray(struct.pack('<H6sH', 5, b'', count))
         
         stock_buf = bytearray()
         for stock in stocks:
