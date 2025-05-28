@@ -4,6 +4,8 @@ import datetime
 import struct
 import six
 
+from log import log
+
 
 #### XXX: 分析了一下，貌似是类似utf-8的编码方式保存有符号数字
 def get_price(data, pos):
@@ -41,12 +43,12 @@ def to_datetime(num, with_time=False):
     hour = 15
     minute = 0
     if with_time:
-        zip_data = num >> 8
+        zip_data = num & 0xFFFF
         year = (zip_data >> 11) + 2004
         month = int((zip_data & 0x7FF) / 100)
         day = (zip_data & 0x7FF) % 100
 
-        tminutes = num & 0xff
+        tminutes = num >> 16
         hour = int(tminutes / 60)
         minute = tminutes % 60
     else:

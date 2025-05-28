@@ -7,7 +7,7 @@ from typing import override
 import six
 from help import to_datetime, get_price, get_time
 
-@register_parser(u'0c 10 08 64', u'01 01', u'2d 05')
+@register_parser(0x52d)
 class Bars(BaseParser):
     def __init__(self, market: MARKET, code: str, kline_type: KLINE_TYPE, start: int, count: int):
         if type(code) is six.text_type:
@@ -56,10 +56,10 @@ class Bars(BaseParser):
 
         return bars
 
-@register_parser(u'0c 0c 18 6c', u'00 01', u'4e 04')
+@register_parser(0x44e)
 class Count(BaseParser):
     def __init__(self, market: MARKET):
-        self.body = struct.pack(u'<HI', market.value, 0x133c775)
+        self.body = struct.pack(u'<HI', market.value, 0) # 0x133c775
 
     @override
     def deserialize(self, data):
@@ -67,7 +67,7 @@ class Count(BaseParser):
             'count': struct.unpack('<H', data[:2])[0]
         }
 
-@register_parser(u'0c 01 18 64', u'01 01', u'50 04')
+@register_parser(0x450)
 class List(BaseParser):
     def __init__(self, market: MARKET, start):
         self.body = struct.pack(u'<HH', market.value, start)
@@ -79,8 +79,7 @@ class List(BaseParser):
         stocks = []
         for i in range(count):
             pos = 2 + i * 29
-            (code, vol, name, unknow1, decimal_point,
-             pre_close, unknow2) = struct.unpack("<6sH8s4sBf4s", data[pos: pos + 29])
+            (code, vol, name, unknown1, decimal_point, pre_close, unknown2) = struct.unpack("<6sH8s4sBf4s", data[pos: pos + 29])
             code = code.decode('utf-8')
             name = name.decode('gbk', errors='ignore').rstrip('\x00')
 
@@ -90,13 +89,13 @@ class List(BaseParser):
                 'name': name,
                 'pre_close': pre_close,
                 'decimal_point': decimal_point,
-                'unknow1': unknow1,
-                'unknow2': unknow2,
+                'unknown1': unknown1.hex(),
+                'unknown2': unknown2.hex(),
             })
 
         return stocks
 
-@register_parser(u'0c 1b 08 00', u'01 01', u'1d 05')
+@register_parser(0x51d)
 class Orders(BaseParser):
     def __init__(self, market: MARKET, code: str):
         if type(code) is six.text_type:
@@ -125,7 +124,7 @@ class Orders(BaseParser):
 
         return orders
 
-@register_parser(u'0c 01 30 00', u'01 01', u'b4 0f')
+@register_parser(0xfb4)
 class HistoryOrders(BaseParser):
     def __init__(self, market: MARKET, code: str, date: date):
         if type(code) is six.text_type:
@@ -158,7 +157,7 @@ class HistoryOrders(BaseParser):
 
         return orders
 
-@register_parser(u'0c 01 20 63', u'00 02', u'3e 05')
+@register_parser(0x53e)
 class Quotes(BaseParser):
     def __init__(self, stocks: list[MARKET, str]):
         count = len(stocks)
@@ -325,7 +324,7 @@ class Quotes(BaseParser):
 
         return quotes
 
-@register_parser(u'0c 17 08 01', u'01 01', u'c5 0f')
+@register_parser(0xfc5)
 class Transaction(BaseParser):
     def __init__(self, market: MARKET, code: str, start: int, count: int):
         if type(code) is six.text_type:
@@ -360,7 +359,7 @@ class Transaction(BaseParser):
 
         return transactions
 
-@register_parser(u'0c 01 30 01', u'00 01', u'b5 0f')
+@register_parser(0xfb5)
 class HistoryTransaction(BaseParser):
     def __init__(self, market: MARKET, code: str, date: date, start: int, count: int):
         if type(code) is six.text_type:

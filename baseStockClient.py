@@ -91,7 +91,7 @@ class BaseStockClient():
         # 是否在函数调用出错的时候抛出异常
         self.raise_exception = raise_exception
 
-    def connect(self, ip='101.227.73.20', port=7709, time_out=CONNECT_TIMEOUT, bindport=None, bindip='0.0.0.0'):
+    def connect(self, ip='202.100.166.21', port=7709, time_out=CONNECT_TIMEOUT, bindport=None, bindip='0.0.0.0'):
         """
 
         :param ip:  服务器ip 地址
@@ -188,8 +188,10 @@ class BaseStockClient():
             if self.raise_exception:
                 raise Exception("not connected")
 
+        # zipped: 0x1c 表示压缩，0xc 表示不压缩
         try:
-            log.debug("sending data: " + data.hex())
+            zipped, customize, control, zipsize, unzip_size, msg_id = struct.unpack('<BIBHHH', data[:12])
+            log.debug("sending data: zipped: %s, customize: %s, control: %s, zipsize: %d, unzip_size: %d, msg_id: %s" % (hex(zipped), hex(customize), hex(control), zipsize, unzip_size, hex(msg_id)))
             send_data = self.client.send(data)
             if send_data != len(data):
                 log.debug("send data error")
@@ -197,10 +199,11 @@ class BaseStockClient():
                     raise Exception("send data error")
             else:
                 head_buf = self.client.recv(RSP_HEADER_LEN)
-                log.debug("recv header: " + head_buf.hex())
-                _, _, _, zipsize, unzip_size = struct.unpack('<IIIHH', head_buf)
+                
+                prefix, zipped, customize, unknown, msg_id, zipsize, unzip_size = struct.unpack('<IBIBHHH', head_buf)
+                log.debug("recv Header: zipped: %s, customize: %s, control: %s, msg_id: %s, zipsize: %d, unzip_size: %d" % (hex(zipped), hex(customize), hex(unknown), hex(msg_id), zipsize, unzip_size))
 
-                need_unzip_size = not zipsize == unzip_size
+                need_unzip_size = zipped == 0x1c
                 body_buf = bytearray()
                 while zipsize > 0:
                     data_buf = self.client.recv(zipsize)

@@ -5,7 +5,7 @@ from parser.baseparser import BaseParser, register_parser
 import six
 from help import to_datetime
 
-@register_parser(u'0c 0f 10 9b', u'00 01', u'cf 02')
+@register_parser(0x2cf)
 class Category(BaseParser):
     def __init__(self, market: MARKET, code: str):
         if type(code) is six.text_type:
@@ -40,7 +40,7 @@ class Category(BaseParser):
 
         return categories
 
-@register_parser(u'0c 07 10 9c', u'00 01', u'd0 02')
+@register_parser(0x2d0)
 class Content(BaseParser):
     def __init__(self, market: MARKET, code: str, filename: str, start: int, length: int):
         if type(code) is six.text_type:
@@ -67,7 +67,7 @@ class Content(BaseParser):
         }
 
 
-@register_parser(u'0c 1f 18 76', u'00 01', u'10 00')
+@register_parser(0x10)
 class Finance(BaseParser):
     def __init__(self, market: MARKET, code: str):
         if type(code) is six.text_type:
@@ -158,7 +158,7 @@ class Finance(BaseParser):
         }
 
 
-@register_parser(u'0c 1f 18 76', u'00 01', u'0f 00')
+@register_parser(0xf)
 class XDXR(BaseParser):
     def __init__(self, market: MARKET, code: str):
         if type(code) is six.text_type:

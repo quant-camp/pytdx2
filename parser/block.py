@@ -4,7 +4,7 @@ from params import BLOCK_FILE_TYPE
 from parser.baseparser import BaseParser, register_parser
 import six
 
-@register_parser(u'0c 12 34 00', u'00 00', u'b9 06')
+@register_parser(0x6b9)
 class Report(BaseParser):
     def __init__(self, file_name: str, start: int = 0, size: int = 0x7530):
         if type(file_name) is six.text_type:
@@ -18,7 +18,7 @@ class Report(BaseParser):
             'data': data[4:]
         }
 
-@register_parser(u'0c 39 18 69', u'00 01', u'c5 02')
+@register_parser(0x2c5)
 class Meta(BaseParser):
     def __init__(self, block_file_type: BLOCK_FILE_TYPE):
         file_name = block_file_type.value.encode("utf-8") if type(block_file_type.value) is six.text_type else block_file_type.value
@@ -34,7 +34,7 @@ class Meta(BaseParser):
             "unknow2" : unknow2
         }
 
-@register_parser(u'0c 37 18 6a', u'00 01', u'b9 06')
+@register_parser(0x6b9)
 class Info(Report):
     def __init__(self, block_file_type: BLOCK_FILE_TYPE, start: int, size: int):
         super().__init__(block_file_type.value, start, size)

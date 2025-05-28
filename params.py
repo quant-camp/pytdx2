@@ -15,6 +15,7 @@ class MARKET(Enum):
     # 0 - 深圳， 1 - 上海
     SZ = 0
     SH = 1
+    BJ = 2
 
 class KLINE_TYPE(Enum):
     # 0 -   5 分钟K 线
