@@ -1,6 +1,6 @@
 import struct
 from typing import override
-from params import BLOCK_FILE_TYPE
+from const import BLOCK_FILE_TYPE
 from parser.baseparser import BaseParser, register_parser
 import six
 

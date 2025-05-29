@@ -1,6 +1,6 @@
 import struct
 from typing import override
-from params import MARKET
+from const import MARKET
 from parser.baseparser import BaseParser, register_parser
 import six
 from help import to_datetime

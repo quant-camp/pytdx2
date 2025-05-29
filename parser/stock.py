@@ -1,6 +1,6 @@
 from datetime import date
 from log import log
-from params import KLINE_TYPE, MARKET
+from const import KLINE_TYPE, MARKET
 from parser.baseparser import BaseParser, register_parser
 import struct
 from typing import override
@@ -21,12 +21,14 @@ class Bars(BaseParser):
         (count,) = struct.unpack('<H', data[:2])
         pos = 2
 
+        minute_category = self.kline_type.value < 4 or self.kline_type.value == 7 or self.kline_type.value == 8
+
         pre_diff_base = 0
         bars = []
-        for _ in range(count):
+        for i in range(count):
             (date,) = struct.unpack("<I", data[pos: pos + 4])
             pos += 4
-            datetime = to_datetime(date, self.kline_type.value < 4 or self.kline_type.value == 7 or self.kline_type.value == 8)
+            datetime = to_datetime(date, minute_category)
 
             open, pos = get_price(data, pos)
             close, pos = get_price(data, pos)
@@ -37,6 +39,17 @@ class Bars(BaseParser):
             (vol, amount) = struct.unpack("<ff", data[pos: pos + 8])
             pos += 8
 
+            upCount = 0
+            downCount = 0
+            if i < count - 1:
+                try:
+                    try_date = to_datetime(struct.unpack("<I", data[pos: pos + 4])[0], minute_category)
+                    if len(bars) > 0 and try_date.year < bars[-1]['datetime'].year:
+                        raise ValueError()
+                except ValueError:
+                    (upCount, downCount) = struct.unpack("<HH", data[pos: pos + 4])
+                    pos += 4
+
             open += pre_diff_base
             close += open
             high += open
@@ -44,7 +57,7 @@ class Bars(BaseParser):
 
             pre_diff_base = close
 
-            bars.append({
+            bar = {
                 'datetime': datetime,
                 'open': open,
                 'close': close,
@@ -52,7 +65,11 @@ class Bars(BaseParser):
                 'low': low,
                 'vol': vol,
                 'amount': amount,
-            })
+            }
+            if upCount != 0 or downCount != 0:
+                bar['upCount'] = upCount
+                bar['downCount'] = downCount
+            bars.append(bar)
 
         return bars
 
@@ -343,7 +360,7 @@ class Transaction(BaseParser):
 
             price, pos = get_price(data, pos)
             vol, pos = get_price(data, pos)
-            num, pos = get_price(data, pos)
+            trans, pos = get_price(data, pos)
             buyorsell, pos = get_price(data, pos)
             unknown, pos = get_price(data, pos)
 
@@ -352,8 +369,8 @@ class Transaction(BaseParser):
                 "time": "%02d:%02d" % (hour, minute),
                 'price': last_price,
                 'vol': vol,
-                'num': num,
-                'buyorsell': buyorsell,
+                'trans': trans,
+                'action': 'SELL' if buyorsell == 1 else 'BUY',
                 'unknown': unknown,
             })
 
@@ -369,8 +386,8 @@ class HistoryTransaction(BaseParser):
 
     @override
     def deserialize(self, data):
-        (count,) = struct.unpack('<H', data[:2])
-        pos = 2
+        (count, _) = struct.unpack('<H4s', data[:6])
+        pos = 6
 
         last_price = 0
         transactions = []
@@ -387,7 +404,7 @@ class HistoryTransaction(BaseParser):
                 "time": "%02d:%02d" % (hour, minute),
                 'price': last_price,
                 'vol': vol,
-                'buyorsell': buyorsell,
+                'action': 'SELL' if buyorsell == 1 else 'BUY',
                 'unknown': unknown,
             })
 

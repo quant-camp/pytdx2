@@ -1,6 +1,6 @@
 # coding=utf-8
 
-import datetime
+from datetime import datetime
 import struct
 import six
 
@@ -36,7 +36,7 @@ def get_price(data, pos):
 
     return intdata, pos
 
-def to_datetime(num, with_time=False):
+def to_datetime(num, with_time=False) -> datetime:
     year = 0
     month = 0
     day = 0
@@ -55,11 +55,10 @@ def to_datetime(num, with_time=False):
         year = int(num / 10000)
         month = int((num % 10000) / 100)
         day = num % 100
+    if year > datetime.now().year:
+        raise ValueError("year is too large")
 
-    date = datetime.date(year, month, day)
-    time = datetime.time(hour, minute)
-    datetime_obj = datetime.datetime.combine(date, time)
-    return datetime_obj
+    return datetime(year, month, day, hour, minute)
 
 def get_time(buffer, pos):
     (tminutes, ) = struct.unpack("<H", buffer[pos: pos + 2])

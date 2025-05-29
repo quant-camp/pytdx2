@@ -1,15 +1,5 @@
 # coding=utf-8
-
-
 from enum import Enum
-
-
-class TDXParams:
-    # ref : https://github.com/rainx/pytdx/issues/7
-    # 分笔行情最多2000条
-    MAX_TRANSACTION_COUNT = 2000
-    # k先数据最多800条
-    MAX_KLINE_COUNT = 800
 
 class MARKET(Enum):
     # 0 - 深圳， 1 - 上海

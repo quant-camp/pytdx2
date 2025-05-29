@@ -4,8 +4,8 @@ from typing import override
 from baseStockClient import BaseStockClient, update_last_ack_time
 from block_reader import BlockReader, BlockReader_TYPE_FLAT
 from log import log
-from params import BLOCK_FILE_TYPE, KLINE_TYPE, MARKET, TDXParams
-from parser import index_bars, security, setup, company_info, block
+from const import BLOCK_FILE_TYPE, KLINE_TYPE, MARKET
+from parser import stock, remote, company_info, block
 from parser.baseparser import BaseParser
 
 import pandas as pd
@@ -18,8 +18,7 @@ class TdxClient(BaseStockClient):
         return parser.deserialize(super().send(parser.serialize()))
 
     def setup(self):
-        log.debug("setup")
-        self.call(setup.Setup())
+        self.call(remote.Connect())
         # self.call(setup.Notice())
 
     @override
@@ -28,11 +27,23 @@ class TdxClient(BaseStockClient):
 
     @override
     def doHeartBeat(self):
-        self.get_security_count(1)
+        self.call(remote.HeartBeat())
 
     @update_last_ack_time
     def get_security_bars(self, market: MARKET, code: str, kline_type: KLINE_TYPE, start, count):
-        return self.call(security.Bars(market, code, kline_type, start, count))
+        # k线数据最多800条
+        MAX_KLINE_COUNT = 800
+        bars = []
+        while len(bars) < count:
+            part = self.call(stock.Bars(market, code, kline_type, start, min(count - len(bars), MAX_KLINE_COUNT)))
+            if not part:
+                break
+            bars = [*part, *bars]
+            if len(part) < MAX_KLINE_COUNT:
+                break
+            start = start + len(part)
+
+        return bars
 
     @update_last_ack_time
     def get_security_quotes(self, all_stock, code=None):
@@ -52,35 +63,57 @@ class TdxClient(BaseStockClient):
                 and len(all_stock) == 2 and type(all_stock[0]) is int:
             all_stock = [all_stock]
 
-        return self.call(security.Quotes(all_stock))
+        return self.call(stock.Quotes(all_stock))
 
     @update_last_ack_time
     def get_security_count(self, market: MARKET):
-        return self.call(security.Count(market))
+        return self.call(stock.Count(market))
 
     @update_last_ack_time
     def get_security_list(self, market: MARKET, start):
-        return self.call(security.List(market, start))
-
-    @update_last_ack_time
-    def get_index_bars(self, market: MARKET, code: str, kline_type: KLINE_TYPE, start: int, count: int):
-        return self.call(index_bars.IndexBars(market, code, kline_type, start, count))
+        return self.call(stock.List(market, start))
 
     @update_last_ack_time
     def get_orders(self, market: MARKET, code: str):
-        return self.call(security.Orders(market, code))
+        return self.call(stock.Orders(market, code))
 
     @update_last_ack_time
     def get_history_orders(self, market: MARKET, code: str, date: date):
-        return self.call(security.HistoryOrders(market, code, date))
+        return self.call(stock.HistoryOrders(market, code, date))
 
     @update_last_ack_time
-    def get_transaction(self, market: MARKET, code: str, start: int, count: int):
-        return self.call(security.Transaction(market, code, start, count))
+    def get_transaction(self, market: MARKET, code: str):
+        # 这里最多就1800条
+        MAX_TRANSACTION_COUNT = 1800
+        start = 0
+        transaction = []
+        while True:
+            part = self.call(stock.Transaction(market, code, start, MAX_TRANSACTION_COUNT))
+            if not part:
+                break
+            transaction = [*part, *transaction]
+            if len(part) < MAX_TRANSACTION_COUNT:
+                break
+            start = start + len(part)
+        return transaction
 
     @update_last_ack_time
-    def get_history_transaction(self, market: MARKET, code: str, date: date, start: int, count: int):
-        return self.call(security.HistoryTransaction(market, code, date, start, count))
+    def get_history_transaction(self, market: MARKET, code: str, date: date):
+        # ref : https://github.com/rainx/pytdx/issues/7
+        # 分笔行情最多2000条
+        MAX_TRANSACTION_COUNT = 2000
+        start = 0
+        transaction = []
+        while True:
+            part = self.call(stock.HistoryTransaction(market, code, date, start, MAX_TRANSACTION_COUNT))
+            if not part:
+                break
+            transaction.extend(part)
+            if len(part) < MAX_TRANSACTION_COUNT:
+                break
+            start = start + len(part)
+            
+        return transaction
 
     @update_last_ack_time
     def get_company_info(self, market: MARKET, code: str):
@@ -202,34 +235,34 @@ if __name__ == "__main__":
 
     client = TdxClient()
     if client.connect('180.153.18.172', 80):
-        log.info("获取股票行情")
-        print_df(client.get_security_quotes([(MARKET.SZ, '300766'), (MARKET.SH, '600300')]))
-        # log.info("获取k线")
-        # print_df(client.get_security_bars(MARKET.SZ, '000001', KLINE_TYPE.FIVE_MIN, 0, 3))
+        # log.info("获取股票行情")
+        # print_df(client.get_security_quotes([(MARKET.SZ, '300766'), (MARKET.SH, '600300')]))
         # log.info("获取 深市 股票数量")
         # print_df(client.get_security_count(MARKET.SZ))
-        # log.info("获取股票列表")
-        # print_df(client.get_security_list(MARKET.SH, 22384))
+        log.info("获取股票列表")
+        print_df(client.get_security_list(MARKET.SH, 22384))
         # log.info("获取股票列表")
         # print_df(client.get_security_list(MARKET.SH, 25217))
         # log.info("获取股票列表")
         # print_df(client.get_security_list(MARKET.SZ, 20569))
+        # log.info("获取k线")
+        # print_df(client.get_security_bars(MARKET.SZ, '000001', KLINE_TYPE.DAY_K, 0, 500))
         # log.info("获取指数k线")
-        # print_df(client.get_index_bars(MARKET.SH, '999999', KLINE_TYPE.DAY_K, 0, 10))
+        # print_df(client.get_security_bars(MARKET.SH, '999999', KLINE_TYPE.DAY_K, 0, 2000))
         # log.info("查询分时行情")
         # print_df(client.get_orders(MARKET.SZ, '000001'))
         # log.info("查询历史分时行情")
         # print_df(client.get_history_orders(MARKET.SZ, '000001', date(2023, 3, 1)))
         # log.info("查询分时成交")
-        # print_df(client.get_transaction(MARKET.SZ, '000001', 0, 30))
+        # print_df(client.get_transaction(MARKET.SZ, '300766'))
         # log.info("查询历史分时成交")
-        # print_df(client.get_history_transaction(MARKET.SZ, '000001', date(2023, 3, 1), 0, 30))
+        # print_df(client.get_history_transaction(MARKET.SZ, '300689', date(2025, 5, 22)))
         # log.info("查询公司信息")
         # print_df(client.get_company_info(MARKET.SZ, '000001'))
-        # log.info("日线级别k线获取函数")
-        # pprint.pprint(client.get_k_data('000001', '2017-07-01', '2017-07-10'))
+        log.info("日线级别k线获取函数")
+        pprint.pprint(client.get_k_data('000001', '2017-07-01', '2017-07-10'))
         # log.info("获取板块信息")
         # pprint.pprint(client.get_block_info(BLOCK_FILE_TYPE.SZ))
         # log.info("获取报告文件")
         # pprint.pprint(client.get_report_file('tdxfin/gpcw.txt'))
-    client.disconnect()
+        client.disconnect()

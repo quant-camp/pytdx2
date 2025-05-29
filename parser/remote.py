@@ -6,7 +6,7 @@ from log import log
 from parser.baseparser import BaseParser, register_parser
 
 @register_parser(0xd)
-class Setup(BaseParser):
+class Connect(BaseParser):
     def __init__(self):
         self.body = struct.pack('<B', 1)
 
@@ -45,3 +45,13 @@ class Notice(BaseParser):
             "link": link,
             "msg": msg
         }
+
+@register_parser(0x4)
+class HeartBeat(BaseParser):
+    def __init__(self):
+        self.body = bytearray()
+                                      
+    @override
+    def deserialize(self, data):
+        (_, date) = struct.unpack('<6sI', data[:10])
+        return date
