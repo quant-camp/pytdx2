@@ -7,7 +7,7 @@ import time
 # 参考 :https://stackoverflow.com/questions/6524459/stopping-a-thread-after-a-certain-amount-of-time
 
 
-DEFAULT_HEARTBEAT_INTERVAL = 10.0 # 10秒一个heartbeat
+DEFAULT_HEARTBEAT_INTERVAL = 15.0 # 15秒一个heartbeat
 
 class HeartBeatThread(Thread):
 

@@ -102,20 +102,17 @@ class List(BaseParser):
         stocks = []
         for i in range(count):
             pos = 2 + i * 37
-            (code, vol, name, _, unknown1, unknown2, unknown3, unknown4, unknown5, unknown6, unknown7, unknown8, unknown9) = struct.unpack("<6sH8s8sIBHBBBBBB", data[pos: pos + 37])
+            (code, vol, name, _, unknown1, decimal_point, pre_close, unknown2) = struct.unpack("<6sH8s8s4sBf4s", data[pos: pos + 37])
             code = code.decode('gbk', errors='ignore').rstrip('\x00')
             name = name.decode('gbk', errors='ignore').rstrip('\x00')
 
-            # (code, vol, name, s1, s2, s3, s4, s5, s6, s7, s8, s9) = struct.unpack("<6sH16sfBHBBBBBB", data[i * 37 + 2: (i + 1) * 37 + 2])
-            # code = code.decode('gbk').rstrip('\x00')
-
-            print(data[pos + 24 : pos + 37].hex())
             stocks.append({
                 'code': code,
                 'vol': vol,
                 'name': name,
-                'unknown1': [unknown1, unknown2, unknown3, unknown4],
-                'unknown2': [unknown5, unknown6, unknown7, unknown8, unknown9],
+                'decimal_point': decimal_point,
+                'pre_close': pre_close,
+                'unknown1': [unknown1.hex(), unknown2.hex()],
             })
 
         return stocks
@@ -140,8 +137,8 @@ class ListOld(BaseParser):
                 'code': code,
                 'vol': vol,
                 'name': name,
-                'pre_close': pre_close,
                 'decimal_point': decimal_point,
+                'pre_close': pre_close,
                 'unknown1': unknown1.hex(),
                 'unknown2': unknown2.hex(),
             })
@@ -311,49 +308,23 @@ class ChartSampling(BaseParser):
         }
         
 @register_parser(0x53e)
-class Quotes(BaseParser):
+class QuotesDetail(BaseParser):
     def __init__(self, stocks: list[MARKET, str]):
         count = len(stocks)
         if count <= 0:
             raise Exception("stocks count must > 0")
         self.body = bytearray(struct.pack('<H6sH', 5, b'', count))
         
-        stock_buf = bytearray()
         for stock in stocks:
             (market, code) = stock
             if type(code) is six.text_type:
                 code = code.encode("utf-8")
-            stock_buf.extend(struct.pack('<B6s', market.value, code))
-        self.body.extend(stock_buf)
+            self.body.extend(struct.pack('<B6s', market.value, code))
 
     @override
     def deserialize(self, data):
         (_, count) = struct.unpack('<HH', data[:4])
         pos = 4
-
-        def _format_time(time_stamp):
-            if time_stamp == 0:
-                return '00:00:00.000'
-            else:
-                time_stamp = str(time_stamp)
-            """
-            format time from reversed_bytes0
-            by using method from https://github.com/rainx/pytdx/issues/187
-            """
-            time = time_stamp[:-6] + ':'
-            if int(time_stamp[-6:-4]) < 60:
-                time += '%s:' % time_stamp[-6:-4]
-                time += '%06.3f' % (
-                    int(time_stamp[-4:]) * 60 / 10000.0
-                )
-            else:
-                time += '%02d:' % (
-                    int(time_stamp[-6:]) * 60 / 1000000
-                )
-                time += '%06.3f' % (
-                    (int(time_stamp[-6:]) * 60 % 1000000) * 60 / 1000000.0
-                )
-            return time
 
         quotes = []
         for _ in range(count):
@@ -489,13 +460,10 @@ class Quotes2(BaseParser):
             raise Exception("stocks count must > 0")
         self.body = bytearray(struct.pack('<H', count))
         
-        stock_buf = bytearray()
-        for stock in stocks:
-            (market, code) = stock
+        for (market, code) in stocks:
             if type(code) is six.text_type:
                 code = code.encode("gbk")
-            stock_buf.extend(struct.pack('<B6sI', market.value, code, 0))
-        self.body.extend(stock_buf)
+            self.body.extend(struct.pack('<B6sI', market.value, code, 0))
     @override
     def deserialize(self, data):
         print("data: ", data.hex())
@@ -522,7 +490,7 @@ class QuotesList(BaseParser):
         
         stocks = []
         for _ in range(count):
-            (code, active1 ) = struct.unpack('<7sH', data[pos: pos + 9])
+            (market, code, active1 ) = struct.unpack('<B6sH', data[pos: pos + 9])
             pos += 9
             price, pos = get_price(data, pos)
             last_close, pos = get_price(data, pos)
@@ -565,6 +533,7 @@ class QuotesList(BaseParser):
             pos += 2
 
             stocks.append({
+                'market': MARKET(market),
                 'code': code.decode('gbk'),
                 'price': price,
                 'last_close': last_close,
@@ -615,18 +584,15 @@ def _format_time(time_stamp):
 # >0c f32d8800 01 8300 8300 4c05 | 0500 00000000 0000 1100 0030303030303100333030373636003330303739300033303132333600333030363537003330303932360033303036303401363033383933003030303135350033303034333201363035353938003030323437320136303035343700303032323631003330303036350030303236343000333030393633
 # <b1cb7400 1c ff2d8800 00 4c05 a304 df06 789c75946b4c53671cc6ffef29d07268cfa1078a06499529c36583f50eac5b4e41702ba5355ec6d06d06dd07972c448dbbbb0fb55ccbc5225044a86ca52d051c2a9d651d552a8439c7580ec6d9396288ec6296a84159b23042ec4edd87950fe73ddf9f5f9ee7f7be07400c208b1eb95b5c4395eab1326b9821a628676d23b2df89771fe831d55af21dd5bbc05e8d01aadf5f571ce62f4770a8bc602a839833f551a52edbface24701cb7189432599e465321f6ab43c88efad11b5d3e8670e87b1bb774bcf2d9dc31d3e074aa3f44c2375e1cd057d8304a03216482b9c464880d32fdf31bfd60f67c2117a8e23f50818c491a975a913a7fbbed7b8600f745a10337ddd1192fdfe60ffc1c078e4554085bfd2c64352200e875ea0391ff43bc171b68d144791117844962217285527330d9bdd38ddc6810550e7632c4657ce412657e4116d49abc37139b160410b0251442b24510a632810028ab34fc1dc3193dfe8c4e6b19e05ced6072b48c469d372f1acb6e47cdecb7abfd2a5be7eb3e4953bae3e14fc68bcbc286210138fcac9d1e891b8545a99004e6164b696ccef8cc197a75e3ab212ecebc28ca295068ecfca12cad5259ea9a6421b6ae3867fcbec5b365be5bd8d949042324a056bc0985e301f860f6edd0c7c56404b45d747be56ececdecfca75d64aa2ea15da7557d894c012f430c90b67ebc59a4edeb37facf2574aff0e0ca186b6610eb45e144009624d9531a8999acff5e1b7de434ce89e912228d4c995fa01491bd0ba88fe7c25cd83554eff510f30bc86f891f4cdff0a9c8e432f3da2c98d4729da7073e9e96940624803f68588d211dd95ba25bda7b7a828b2422a34f47ae5607052364711159ecb8cd108fc9b6135477fa8bfb09a3cf8c3bcd0268395e08b6cccec4cef5a9c0eeb575561f1bb270789a7e98d5cc799d8382e86a2aa52244546f50c9d5fac61f19a223c7f75dc6a92d39af4f1a5d36716b200942bfb0fef1b872c9efd1db9cffc11afb2d7f35d29b6f49396f5988602753ab0bf219deb94d14f55289e57e3f717f93e501aa4389b62543cdc7a16370663d207e575c5a2aceb6303f225e8b4d7836a3963ede769893c0f0d8a914aa3c45067941de82aa510d32f48e32c4a2bcd5233a4f9ebfeb315eea13382cf1f0c5095404025e38310178603eb2adf4498c11cdf0fbf46d9d8cd37d06c91691a955793d6420b74c2cdd7366be9f58cef505c481b79a6fcc18af581247fd82a2ee511ea0512cb7935a89c4c15dbc61cd0fc6932dd57dd2b8c4a9bd27aa5da1d0c80f5123396d48a5daed1863bde7b8e6b60fbddb609936d96f649fb46e045f3d5108766187b413e19002ba61fb1a8ceac359facfc81427e6101515cfbefda3d450c67d348169e630d70f0c11f0f0badba75053007bfbd8f33b4eac56749f7e0face30240d6dc9697d3a8bb9172d05d4b5af373ce5ab9498f38b339f51ca5a295342a5915e5e14b92538a9b7f65883ff8b5de792c38c77b5ce535390702c8f3c483c07972732154b720fbb758f93a0914003caa34ccc4643d97de43d70977723aaa7adaab40a3046a206798ef8e3f99b0c7c30ed89a1f9adfe67622d9beeba6dacfb38221299c5bdd0aa82da50e0baf5b8984e1ea9bf70c793149117a932e7cc0c94902ea5f8efca387
 @register_parser(0x54c)
-class ListAGAIN(BaseParser):
-    def __init__(self, codes: list[str]):
-        count = len(codes)
+class Quotes(QuotesList):
+    def __init__(self, stocks: list[MARKET, str]):
+        count = len(stocks)
         if count <= 0:
             raise Exception("stocks count must > 0")
         self.body = bytearray(struct.pack('<HIHH', 5, 0, 0, count))
-        for code in codes:
-            self.body.extend(struct.pack('<B6s', 0, code.encode('gbk')))
+        for (market, code) in stocks:
+            self.body.extend(struct.pack('<B6s', market.value, code.encode('gbk')))
 
-    @override
-    def deserialize(self, data):
-        return data
 
 @register_parser(0x563)
 class Lists(BaseParser):
@@ -640,11 +606,12 @@ class Lists(BaseParser):
         for i in range(count):
             pice_data = data[32 * i + 2: 32 * (i + 1) + 2]
 
-            market, code, u1, u2, index, z = struct.unpack('<B7sBHHH', pice_data[:15])
+            market, code, u1, u2, index, z = struct.unpack('<H6sBHHH', pice_data[:15])
             v1, v2, v3, v4, v5, v6, v7, v8 = struct.unpack('<BBHIIHBH', pice_data[15: 32])
 
+            print(pice_data.hex())
             stocks.append({
-                "market": market,
+                "market": MARKET(market),
                 "code": code.decode('gbk').replace('\x00', ''),
                 "u": [u1, u2],
                 "index": index,

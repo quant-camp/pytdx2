@@ -82,8 +82,8 @@ class Login(BaseParser):
         unknown4, unknown5, unknown6, \
         server_name, web_site, unknown7, category) = struct.unpack('<BHBBBBBB16s16sBIHHIHHHH5s22s64s6s30s', data)
 
-        print(f'a1: {a1} b1: {b1} a2: {a2} b2: {b2}')
-        print(f"unknown1: {unknown1.hex()} unknown2: {unknown2.hex()} unknown3: {unknown3} unknown4: {unknown4} unknown5: {unknown5} unknown6: {unknown6.hex()}")
+        # print(f'a1: {a1} b1: {b1} a2: {a2} b2: {b2}')
+        # print(f"unknown1: {unknown1.hex()} unknown2: {unknown2.hex()} unknown3: {unknown3} unknown4: {unknown4} unknown5: {unknown5} unknown6: {unknown6.hex()}")
 
         info = {
             "date_time": datetime(year, month, day, hour, minute, second).strftime('%Y-%m-%d %H:%M:%S'),
@@ -111,13 +111,13 @@ class Info(BaseParser):
     @override
     def deserialize(self, data):
         # Region: 可能是大区？， 东区100：上海、深圳  北区90：北京  南区80：上海、广州 中区25：武汉  西区56：成都
-        delay, unknown_aH, _, unknown_bH, info, unknown10s, content, server_sign, date1, unknown_cH, unknown_dH, unknown6s, \
+        maybe_delay, unknown_aH, _, unknown_bH, info, unknown10s, content, server_sign, date1, unknown_cH, unknown_dH, unknown6s, \
             _, Region, unknown_fH, _, maybe_switch, \
                 date_now, time_now, date3, date4, date5, date6, date7, z  = struct.unpack('<IH8sH55s10s255s20sIHH6s19sHHHHIIIIIIIH', data[:427])
         
         time_now = datetime(date_now // 10000, date_now % 10000 // 100, date_now % 100, time_now // 10000, time_now % 10000 // 100, time_now % 100)
         return {
-            "delay": delay,
+            "delay": maybe_delay,
             "info": info.decode('gbk').replace('\x00', ''),
             "content": content.decode('gbk').replace('\x00', ''),
             "server_sign": server_sign.decode('gbk').replace('\x00', ''),

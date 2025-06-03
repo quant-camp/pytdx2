@@ -1,5 +1,7 @@
 from datetime import date
 import math
+import threading
+from time import time
 from typing import override
 from baseStockClient import BaseStockClient, update_last_ack_time
 from block_reader import BlockReader, BlockReader_TYPE_FLAT
@@ -35,8 +37,39 @@ class TdxClient(BaseStockClient):
             return False
 
     @override
-    def connect(self, ip='202.100.166.21', port=7709, time_out=5, bindport=None, bindip='0.0.0.0'):
-        return super().connect(ip, port)
+    def connect(self, ip=None, port=7709, time_out=5, bindport=None, bindip='0.0.0.0'):
+        if ip is None:
+            # 选择延迟最低的服务器连接
+            infos = []
+            def get_latency(ip, port, timeout):
+                try:
+                    start_time = time()
+                    c = TdxClient().connect(ip, port, timeout)
+                    # info = c.call(server.Info())
+                    infos.append({
+                        'ip': ip,
+                        'port': port,
+                        # 'delay': info['delay'],
+                        'time': time() - start_time,
+                    })
+                except Exception as e:
+                    pass
+            # 多线程赛跑
+            threads = []
+            for host in tdx_hosts:
+                t = threading.Thread(target=get_latency, args=(host[1], host[2], 1))
+                threads.append(t)
+                t.start()
+            for t in threads:
+                t.join()
+            
+            infos.sort(key=lambda x: x['time'])
+            if len(infos) == 0:
+                raise Exception("no available server")
+
+            return super().connect(infos[0]['ip'], infos[0]['port'], time_out, bindport, bindip)
+        else:
+            return super().connect(ip, port, time_out, bindport, bindip)
 
     @override
     def doHeartBeat(self):
@@ -83,7 +116,7 @@ class TdxClient(BaseStockClient):
         return self.call(stock.Count(market))
 
     @update_last_ack_time
-    def get_security_list(self, market: MARKET, start, count):
+    def get_security_list(self, market: MARKET, start, count = 1600):
         return self.call(stock.List(market, start, count))
 
     @update_last_ack_time
@@ -247,7 +280,7 @@ if __name__ == "__main__":
         pprint.pprint(to_df(data))
 
     client = TdxClient()
-    # if client.connect('123.60.186.45').login():
+    if client.connect('123.60.84.66').login():
         # log.info("获取股票行情")
         # print_df(client.get_security_quotes([(MARKET.SZ, '300766'), (MARKET.SH, '600300')]))
         # log.info("获取 深市 股票数量") # 深市股票数量为 20589  沪市股票数量为 25258
@@ -275,12 +308,15 @@ if __name__ == "__main__":
         # log.info("获取报告文件")
         # print(client.get_report_file('tdxzsbase.cfg'))
         # log.info("获取板块列表")
-        # print_df(client.call(stock.QuotesList(CATEGORY.CYB, 520)))
-    #     # print_df(client.get_security_list(MARKET.SH, 22432))
-    #     # print_df(client.call(stock.Lists(MARKET.SH, 6000)))
-    #     # print_df(client.call(test.Test([(MARKET.SZ, '000001')])))
-    #     # print_df(client.call(stock.ListOld(MARKET.SZ, 0)))
-    #     # print_df(client.call(stock.List(MARKET.SZ, 0, 1000)))
+        # print_df(client.call(stock.Quotes([(MARKET.SZ, '300766'), (MARKET.SH, '600300')])))
+        # print_df(client.call(stock.QuotesDetail([(MARKET.SZ, '300766'), (MARKET.SH, '600300')])))
+        # print_df(client.call(stock.QuotesList(CATEGORY.SZ, 0)))
+        # print_df(client.call(stock.Quotes2([(MARKET.SZ, '300766'), (MARKET.SH, '600300')])))
+
+        # print_df(client.get_security_list(MARKET.SH, 22432))
+        print_df(client.call(stock.Lists(MARKET.SZ, 6000)))
+        # print_df(client.call(stock.ListOld(MARKET.SZ, 0)))
+        print_df(client.call(stock.List(MARKET.SZ, 0, 1075)))
         # print_df(client.call(server.ExchangeAnnouncement()))
         # print_df(client.call(server.HeartBeat()))
         # print_df(client.call(server.Announcement()))
@@ -293,10 +329,10 @@ if __name__ == "__main__":
         # d = pd.Series(d['prices'])
         # d.plot()
         # plt.show()
-        # client.disconnect()
+        client.disconnect()
         
-    for host in tdx_hosts:
-        if client.connect(host[1], host[2]).login():
-            print(host[0])
-            print_df(client.call(server.Info()))
-            client.disconnect()
+    # for host in tdx_hosts:
+    #     if client.connect(host[1], host[2]).login():
+    #         print(host[0])
+    #         print_df(client.call(server.Info()))
+    #         client.disconnect()
