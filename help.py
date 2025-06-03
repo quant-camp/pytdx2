@@ -4,7 +4,24 @@ from datetime import datetime
 import struct
 import six
 
+from const import MARKET
 from log import log
+
+def query_market(code) -> MARKET:
+    """
+    0 - 深圳， 1 - 上海
+    """
+    if code.startswith(("50", "51", "60", "68", "90", "110", "113", "132", "204")):
+        return MARKET.SH
+    elif code.startswith(("00", "12", "13", "18", "15", "16", "18", "20", "30", "39", "115", "1318")):
+        return MARKET.SZ
+    elif code.startswith(("5", "6", "7", "9")):
+        return MARKET.SH
+    elif code.startswith(("4", "8")):
+        return MARKET.BJ
+    else:
+        log.error("unknown market code: {}".format(code))
+        return None
 
 
 #### XXX: 分析了一下，貌似是类似utf-8的编码方式保存有符号数字

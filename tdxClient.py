@@ -4,9 +4,10 @@ from typing import override
 from baseStockClient import BaseStockClient, update_last_ack_time
 from block_reader import BlockReader, BlockReader_TYPE_FLAT
 from log import log
-from const import BLOCK_FILE_TYPE, KLINE_TYPE, MARKET
-from parser import stock, remote, company_info, block
+from const import BLOCK_FILE_TYPE, CATEGORY, KLINE_TYPE, MARKET, tdx_hosts
+from parser import stock, server, company_info, block
 from parser.baseparser import BaseParser
+import parser.test as test
 
 import pandas as pd
 
@@ -15,19 +16,31 @@ class TdxClient(BaseStockClient):
         super().__init__(**kwargs)
 
     def call(self, parser: BaseParser):
-        return parser.deserialize(super().send(parser.serialize()))
+        resp = super().send(parser.serialize())
+        if resp is None:
+            return None
+        else:
+            return parser.deserialize(resp)
 
-    def setup(self):
-        self.call(remote.Connect())
-        # self.call(setup.Notice())
+    def login(self, show_info=False):
+        try:
+            info = self.call(server.Login())
+            if show_info:
+                print(to_df(info))
+            
+            # self.call(remote.Notice())
+            return True
+        except Exception as e:
+            log.error("login failed: %s", e)
+            return False
 
     @override
-    def connect(self, ip='202.100.166.21', port=7709, time_out=..., bindport=None, bindip='0.0.0.0'):
+    def connect(self, ip='202.100.166.21', port=7709, time_out=5, bindport=None, bindip='0.0.0.0'):
         return super().connect(ip, port)
 
     @override
     def doHeartBeat(self):
-        self.call(remote.HeartBeat())
+        self.call(server.HeartBeat())
 
     @update_last_ack_time
     def get_security_bars(self, market: MARKET, code: str, kline_type: KLINE_TYPE, start, count):
@@ -70,8 +83,8 @@ class TdxClient(BaseStockClient):
         return self.call(stock.Count(market))
 
     @update_last_ack_time
-    def get_security_list(self, market: MARKET, start):
-        return self.call(stock.List(market, start))
+    def get_security_list(self, market: MARKET, start, count):
+        return self.call(stock.List(market, start, count))
 
     @update_last_ack_time
     def get_orders(self, market: MARKET, code: str):
@@ -190,7 +203,7 @@ class TdxClient(BaseStockClient):
                 elif get_zero_length_package_times > 2:
                     break
 
-        return filecontent    
+        return filecontent.decode("gbk")
     
     def get_k_data(self, code, start_date, end_date):
         # 具体详情参见 https://github.com/rainx/pytdx/issues/5
@@ -234,35 +247,56 @@ if __name__ == "__main__":
         pprint.pprint(to_df(data))
 
     client = TdxClient()
-    if client.connect('180.153.18.172', 80):
+    # if client.connect('123.60.186.45').login():
         # log.info("获取股票行情")
         # print_df(client.get_security_quotes([(MARKET.SZ, '300766'), (MARKET.SH, '600300')]))
-        # log.info("获取 深市 股票数量")
+        # log.info("获取 深市 股票数量") # 深市股票数量为 20589  沪市股票数量为 25258
         # print_df(client.get_security_count(MARKET.SZ))
-        log.info("获取股票列表")
-        print_df(client.get_security_list(MARKET.SH, 22384))
         # log.info("获取股票列表")
-        # print_df(client.get_security_list(MARKET.SH, 25217))
-        # log.info("获取股票列表")
-        # print_df(client.get_security_list(MARKET.SZ, 20569))
+        # print_df(client.get_security_list(MARKET.SH, 800, 50))
         # log.info("获取k线")
         # print_df(client.get_security_bars(MARKET.SZ, '000001', KLINE_TYPE.DAY_K, 0, 500))
         # log.info("获取指数k线")
         # print_df(client.get_security_bars(MARKET.SH, '999999', KLINE_TYPE.DAY_K, 0, 2000))
         # log.info("查询分时行情")
-        # print_df(client.get_orders(MARKET.SZ, '000001'))
+        # print_df(client.get_orders(MARKET.SZ, '300766'))
         # log.info("查询历史分时行情")
         # print_df(client.get_history_orders(MARKET.SZ, '000001', date(2023, 3, 1)))
         # log.info("查询分时成交")
-        # print_df(client.get_transaction(MARKET.SZ, '300766'))
+        # print_df(client.get_transaction(MARKET.SZ, '000001'))
         # log.info("查询历史分时成交")
         # print_df(client.get_history_transaction(MARKET.SZ, '300689', date(2025, 5, 22)))
         # log.info("查询公司信息")
         # print_df(client.get_company_info(MARKET.SZ, '000001'))
-        log.info("日线级别k线获取函数")
-        pprint.pprint(client.get_k_data('000001', '2017-07-01', '2017-07-10'))
+        # log.info("日线级别k线获取函数")
+        # pprint.pprint(client.get_k_data('000001', '2017-07-01', '2017-07-10'))
         # log.info("获取板块信息")
-        # pprint.pprint(client.get_block_info(BLOCK_FILE_TYPE.SZ))
+        # pprint.pprint(client.get_block_info(BLOCK_FILE_TYPE.ZS))
         # log.info("获取报告文件")
-        # pprint.pprint(client.get_report_file('tdxfin/gpcw.txt'))
-        client.disconnect()
+        # print(client.get_report_file('tdxzsbase.cfg'))
+        # log.info("获取板块列表")
+        # print_df(client.call(stock.QuotesList(CATEGORY.CYB, 520)))
+    #     # print_df(client.get_security_list(MARKET.SH, 22432))
+    #     # print_df(client.call(stock.Lists(MARKET.SH, 6000)))
+    #     # print_df(client.call(test.Test([(MARKET.SZ, '000001')])))
+    #     # print_df(client.call(stock.ListOld(MARKET.SZ, 0)))
+    #     # print_df(client.call(stock.List(MARKET.SZ, 0, 1000)))
+        # print_df(client.call(server.ExchangeAnnouncement()))
+        # print_df(client.call(server.HeartBeat()))
+        # print_df(client.call(server.Announcement()))
+        # print_df(client.call(server.Info()))
+        # print_df(client.call(server.UNKNOWN4()))
+        # print_df(client.call(server.UpgradeTip()))
+        # d = client.call(stock.ChartSampling(MARKET.SZ, '300767'))
+        # import matplotlib.pyplot as plt
+
+        # d = pd.Series(d['prices'])
+        # d.plot()
+        # plt.show()
+        # client.disconnect()
+        
+    for host in tdx_hosts:
+        if client.connect(host[1], host[2]).login():
+            print(host[0])
+            print_df(client.call(server.Info()))
+            client.disconnect()

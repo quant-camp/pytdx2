@@ -117,28 +117,17 @@ class BaseStockClient():
             log.debug("connection expired")
             if self.raise_exception:
                 raise Exception("connection timeout error", e)
-            return False
         except Exception as e:
             if self.raise_exception:
                 raise Exception("other errors", e)
-            return False
 
         log.debug("connected!")
-
-        self.setup()
 
         if self.heartbeat:
             self.stop_event = threading.Event()
             self.heartbeat_thread = HeartBeatThread(self.client, self.stop_event, self.doHeartBeat)
             self.heartbeat_thread.start()
         return self
-
-    def setup(self):
-        """
-        子类可以覆盖这个方法，在connect之后执行一些初始化操作
-        :return:
-        """
-        pass
 
     def doHeartBeat(self):
         """
@@ -188,10 +177,11 @@ class BaseStockClient():
             if self.raise_exception:
                 raise Exception("not connected")
 
+        # cunstomize: 自定义协议号
         # zipped: 0x1c 表示压缩，0xc 表示不压缩
         try:
             zipped, customize, control, zipsize, unzip_size, msg_id = struct.unpack('<BIBHHH', data[:12])
-            log.debug("sending data: zipped: %s, customize: %s, control: %s, zipsize: %d, unzip_size: %d, msg_id: %s" % (hex(zipped), hex(customize), hex(control), zipsize, unzip_size, hex(msg_id)))
+            # log.debug("sending data: zipped: %s, customize: %s, control: %s, zipsize: %d, unzip_size: %d, msg_id: %s" % (hex(zipped), hex(customize), hex(control), zipsize, unzip_size, hex(msg_id)))
             send_data = self.client.send(data)
             if send_data != len(data):
                 log.debug("send data error")
@@ -200,8 +190,9 @@ class BaseStockClient():
             else:
                 head_buf = self.client.recv(RSP_HEADER_LEN)
                 
+                # prefix: b1 cb 74 00 固定响应头
                 prefix, zipped, customize, unknown, msg_id, zipsize, unzip_size = struct.unpack('<IBIBHHH', head_buf)
-                log.debug("recv Header: zipped: %s, customize: %s, control: %s, msg_id: %s, zipsize: %d, unzip_size: %d" % (hex(zipped), hex(customize), hex(unknown), hex(msg_id), zipsize, unzip_size))
+                # log.debug("recv Header: zipped: %s, customize: %s, control: %s, msg_id: %s, zipsize: %d, unzip_size: %d" % (hex(zipped), hex(customize), hex(unknown), hex(msg_id), zipsize, unzip_size))
 
                 need_unzip_size = zipped == 0x1c
                 body_buf = bytearray()
@@ -209,7 +200,6 @@ class BaseStockClient():
                     data_buf = self.client.recv(zipsize)
                     body_buf.extend(data_buf)
                     zipsize -= len(data_buf)
-
                 if need_unzip_size:
                     body_buf = zlib.decompress(body_buf)
 
