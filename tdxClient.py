@@ -284,7 +284,7 @@ if __name__ == "__main__":
         pprint.pprint(to_df(data))
 
     client = TdxClient()
-    if client.connect('123.60.84.66').login():
+    if client.connect().login():
         log.info("心跳包")
         print_df(client.call(server.HeartBeat()))
         log.info("获取服务器公告")
