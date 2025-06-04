@@ -296,8 +296,6 @@ if __name__ == "__main__":
         print_df(client.call(server.ExchangeAnnouncement()))
 
 
-        log.info("获取股票行情")
-        print_df(client.get_security_quotes([(MARKET.SZ, '000001'), (MARKET.SH, '600519')]))
         log.info("获取 深市 股票数量")
         print_df(client.get_security_count(MARKET.SZ))
         log.info("获取股票列表")
@@ -333,6 +331,8 @@ if __name__ == "__main__":
         plt.show()
 
 
+        log.info("获取简略行情")
+        print_df(client.get_security_quotes([(MARKET.SZ, '000001'), (MARKET.SH, '600519')]))
         log.info("获取详细行情")
         print_df(client.call(stock.QuotesDetail([(MARKET.SH, '600000'), (MARKET.SH, '600004')])))
         log.info("获取行情列表")
@@ -341,8 +341,6 @@ if __name__ == "__main__":
         # print_df(client.call(stock.TODO547([(MARKET.SH, '600009'), (MARKET.SH, '600009')])))
         # print_df(client.call(stock.TODO547([(MARKET.SZ, '399002'), (MARKET.SZ, '399003'), (MARKET.SH, '999998'), (MARKET.SH, '999997')])))
         
-        log.info("获取简略行情")
-        print_df(client.call(stock.Quotes([(MARKET.SH, '600000'), (MARKET.SH, '600004')])))
 
         log.info("获取异动")
         print_df(client.call(stock.Unusual(MARKET.SZ, 3000, 400)))
