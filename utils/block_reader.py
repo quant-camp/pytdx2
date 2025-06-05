@@ -1,6 +1,6 @@
 #coding: utf-8
 import struct
-from base_reader import BaseReader
+from utils.base_reader import BaseReader
 from collections import OrderedDict
 import pandas as pd
 import os

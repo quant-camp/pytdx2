@@ -5,7 +5,7 @@ import struct
 import six
 
 from const import MARKET
-from log import log
+from utils.log import log
 
 def query_market(code) -> MARKET:
     """

@@ -4,8 +4,8 @@ import threading
 from time import time
 from typing import override
 from baseStockClient import BaseStockClient, update_last_ack_time
-from block_reader import BlockReader, BlockReader_TYPE_FLAT
-from log import log
+from utils.block_reader import BlockReader, BlockReader_TYPE_FLAT
+from utils.log import log
 from const import BLOCK_FILE_TYPE, CATEGORY, KLINE_TYPE, MARKET, tdx_hosts
 from parser import stock, server, company_info, block
 from parser.baseparser import BaseParser

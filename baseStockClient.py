@@ -2,8 +2,8 @@
 import socket
 import threading
 import time
-from log import log
-from heartbeat import HeartBeatThread
+from utils.log import log
+from utils.heartbeat import HeartBeatThread
 
 import zlib
 import struct

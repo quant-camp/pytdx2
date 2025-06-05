@@ -1,7 +1,7 @@
 # coding=utf-8
 
 from threading import Thread
-from log import log
+from utils.log import log
 import time
 
 # 参考 :https://stackoverflow.com/questions/6524459/stopping-a-thread-after-a-certain-amount-of-time
